@@ -1,0 +1,6 @@
+{
+  "name": "E-sellers Pro - Shopify Theme Studio",
+  "description": "Professional Shopify OS 2.0 Theme IDE, Section Cloner, ZIP Analyzer, and AI Code Generator by E-sellers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
