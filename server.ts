@@ -244,6 +244,152 @@ Return a JSON report:
   }
 });
 
+// Real GitHub Repository Committer & Push API
+app.post("/api/github/push", async (req, res) => {
+  try {
+    const { repo, token, branch = "main", files, commitMessage = "Push theme files from E-sellers Pro cloner" } = req.body;
+    
+    if (!repo || !token || !files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ success: false, error: "Missing required fields (repo, token, or files)" });
+    }
+
+    const parts = repo.split("/");
+    if (parts.length !== 2) {
+      return res.status(400).json({ success: false, error: "Repository must be in format 'owner/repo'" });
+    }
+    const [owner, repoName] = parts;
+
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/vnd.github.v3+json",
+      "User-Agent": "E-sellers-Pro-Applet",
+      "Content-Type": "application/json"
+    };
+
+    // 1. Get branch head ref
+    let refSha = "";
+    const refRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/ref/heads/${branch}`, { headers });
+    
+    if (refRes.status === 404) {
+      // The branch doesn't exist or repo is empty. Let's initialize the repository with the first file!
+      // This will create the branch and initial commit.
+      const firstFile = files[0];
+      const initRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/contents/${firstFile.path}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          message: "Initial commit: " + commitMessage,
+          content: Buffer.from(firstFile.content).toString("base64"),
+          branch
+        })
+      });
+
+      if (!initRes.ok) {
+        const errText = await initRes.text();
+        return res.status(initRes.status).json({ 
+          success: false, 
+          error: `Failed to initialize empty repository with branch '${branch}'. Ensure repository exists and token has write permissions. GitHub error: ${errText}` 
+        });
+      }
+
+      // Repository is initialized! Let's get the new head ref sha so we can commit the remaining files via Tree API
+      const refRetry = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/ref/heads/${branch}`, { headers });
+      if (refRetry.ok) {
+        const refData: any = await refRetry.json();
+        refSha = refData.object.sha;
+      }
+    } else if (refRes.ok) {
+      const refData: any = await refRes.json();
+      refSha = refData.object.sha;
+    } else {
+      const errText = await refRes.text();
+      return res.status(refRes.status).json({ success: false, error: `GitHub API error: ${errText}` });
+    }
+
+    // If we only had 1 file and we already pushed it during initialization, we can return success immediately!
+    if (files.length === 1 && !refSha) {
+      return res.json({ success: true, message: `Successfully initialized repository and pushed 1 file to branch '${branch}'!` });
+    }
+
+    // 2. We have the refSha (either existing or newly initialized). Let's use the Trees API!
+    // A. Get commit tree SHA
+    const commitRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/commits/${refSha}`, { headers });
+    if (!commitRes.ok) {
+      const errText = await commitRes.text();
+      return res.status(commitRes.status).json({ success: false, error: `Failed to fetch commit details: ${errText}` });
+    }
+    const commitData: any = await commitRes.json();
+    const baseTreeSha = commitData.tree.sha;
+
+    // B. Create a new Tree
+    const filesToTree = refSha ? files : files.slice(1);
+    const treeItems = filesToTree.map(f => ({
+      path: f.path,
+      mode: "100644",
+      type: "blob",
+      content: f.content
+    }));
+
+    const createTreeRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/trees`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_tree: baseTreeSha,
+        tree: treeItems
+      })
+    });
+
+    if (!createTreeRes.ok) {
+      const errText = await createTreeRes.text();
+      return res.status(createTreeRes.status).json({ success: false, error: `Failed to create Git tree: ${errText}` });
+    }
+    const treeData: any = await createTreeRes.json();
+    const newTreeSha = treeData.sha;
+
+    // C. Create a Commit
+    const createCommitRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/commits`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        message: commitMessage,
+        tree: newTreeSha,
+        parents: [refSha]
+      })
+    });
+
+    if (!createCommitRes.ok) {
+      const errText = await createCommitRes.text();
+      return res.status(createCommitRes.status).json({ success: false, error: `Failed to create Git commit: ${errText}` });
+    }
+    const newCommitData: any = await createCommitRes.json();
+    const newCommitSha = newCommitData.sha;
+
+    // D. Update Head Ref
+    const updateRefRes = await fetch(`https://api.github.com/repos/${owner}/${repoName}/git/refs/heads/${branch}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        sha: newCommitSha,
+        force: true
+      })
+    });
+
+    if (!updateRefRes.ok) {
+      const errText = await updateRefRes.text();
+      return res.status(updateRefRes.status).json({ success: false, error: `Failed to update head reference: ${errText}` });
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully pushed ${files.length} theme files to branch '${branch}'!`,
+      commitSha: newCommitSha
+    });
+  } catch (err: any) {
+    console.error("Error pushing to GitHub:", err);
+    res.status(500).json({ success: false, error: err.message || "Internal server error pushing to GitHub" });
+  }
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

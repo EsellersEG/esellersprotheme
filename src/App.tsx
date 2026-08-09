@@ -9,6 +9,7 @@ import { ZipAnalyzer } from './components/ZipAnalyzer';
 import { SectionClonerModal } from './components/SectionClonerModal';
 import { AiStudioGenerator } from './components/AiStudioGenerator';
 import { DocsHub } from './components/DocsHub';
+import { GitSyncModal } from './components/GitSyncModal';
 
 import { INITIAL_THEME_FILES, ESELLERS_THEME_INFO } from './data/defaultTheme';
 import { ThemeFile, ClonedSection } from './types';
@@ -19,6 +20,7 @@ export default function App() {
   const [activeFilePath, setActiveFilePath] = useState<string>('sections/hero-banner.liquid');
   const [clonedHistory, setClonedHistory] = useState<ClonedSection[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [isGitSyncOpen, setIsGitSyncOpen] = useState(false);
 
   // Cloner state prefill when coming from Zip Inspector
   const [clonerPrefillFileName, setClonerPrefillFileName] = useState('');
@@ -160,6 +162,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onExportZip={handleExportThemeZip}
         onRevertToBaseTheme={handleRevertToBaseTheme}
+        onPushToGithub={() => setIsGitSyncOpen(true)}
         fileCount={files.length}
         clonedCount={clonedHistory.length}
         isExporting={isExporting}
@@ -225,6 +228,13 @@ export default function App() {
         )}
 
       </div>
+
+      {/* GitHub Sync & Commit Modal */}
+      <GitSyncModal 
+        isOpen={isGitSyncOpen} 
+        onClose={() => setIsGitSyncOpen(false)} 
+        files={files} 
+      />
 
     </div>
   );

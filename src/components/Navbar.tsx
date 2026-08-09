@@ -11,7 +11,8 @@ import {
   Info,
   CheckCircle2,
   Cpu,
-  RotateCcw
+  RotateCcw,
+  Github
 } from 'lucide-react';
 import { ESELLERS_THEME_INFO } from '../data/defaultTheme';
 
@@ -20,6 +21,7 @@ interface NavbarProps {
   setActiveTab: (tab: 'editor' | 'cloner' | 'analyzer' | 'generator' | 'docs' | 'preview') => void;
   onExportZip: () => void;
   onRevertToBaseTheme?: () => void;
+  onPushToGithub?: () => void;
   fileCount: number;
   clonedCount: number;
   isExporting?: boolean;
@@ -30,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onExportZip,
   onRevertToBaseTheme,
+  onPushToGithub,
   fileCount,
   clonedCount,
   isExporting = false
@@ -156,6 +159,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
                 <span className="hidden sm:inline">Reset Base Theme</span>
+              </button>
+            )}
+
+            {onPushToGithub && (
+              <button
+                onClick={onPushToGithub}
+                title="Commit and push your current E-sellers Pro theme files to GitHub"
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 text-xs font-semibold rounded-xl border border-indigo-500/30 transition-all cursor-pointer active:scale-95"
+              >
+                <Github className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Push to GitHub</span>
               </button>
             )}
 
